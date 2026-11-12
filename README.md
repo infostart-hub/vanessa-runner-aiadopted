@@ -11,6 +11,10 @@
 
 Консольная утилита для автоматизации повседневных операций разработчика 1С: сборка и разборка конфигураций, расширений и обработок, загрузка в базу, хранилище, кластер, запуск тестов (Vanessa-ADD, YAxUnit), проверка кода, MCP-сервер для ИИ-ассистентов.
 
+> [!NOTE]
+> **Адаптированный форк `infostart-hub/vanessa-runner-aiadopted`** на базе [`vanessa-opensource/vanessa-runner`](https://github.com/vanessa-opensource/vanessa-runner) для экосистемы **[1С · AI Pipeline](https://github.com/infostart-hub/vanessa-ai-pipeline)**.
+> Добавляет манифест **Agent Plugins 1.0** (`plugin.json`, `mcp.json`), супервизор интерактивных и тестовых сеансов 1С на **Windows** (Windows Job Object, `run_enterprise`, `enterprise_status`, `enterprise_stop`, `enterprise_recover`, `enterprise_authorize`, фоновый `test_vanessa`) и **macOS** (POSIX-группы, чтение новых ошибок `1Cv8Log`, `reportEvidence` по JUnit, точечная настройка доверия локальным файловым ИБ), патч MCP discovery для `autumn-mcp` и окружение `mise.toml`. Подробное руководство: **[`docs/mcp-local-setup.md`](docs/mcp-local-setup.md)**.
+
 📖 **Документация:** [autumn-library.github.io/vanessa-runner](https://autumn-library.github.io/vanessa-runner)
 
 > ⚠️ **vanessa-runner 3.0** — новая мажорная версия с несовместимыми изменениями. При переходе с 2.x см. [руководство по миграции](https://autumn-library.github.io/vanessa-runner/миграция/).

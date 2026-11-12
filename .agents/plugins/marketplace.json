@@ -1,0 +1,10 @@
+{
+  "name": "vanessa-runner-local",
+  "interface": { "displayName": "Vanessa Runner Local" },
+  "plugins": [{
+    "name": "vanessa-runner",
+    "source": { "source": "local", "path": "." },
+    "policy": { "installation": "AVAILABLE", "authentication": "ON_INSTALL" },
+    "category": "Developer Tools"
+  }]
+}

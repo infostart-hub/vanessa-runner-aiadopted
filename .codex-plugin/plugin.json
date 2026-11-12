@@ -1,0 +1,13 @@
+{
+  "name": "vanessa-runner",
+  "version": "0.3.1",
+  "description": "Build and manage 1C projects through Vanessa Runner MCP.",
+  "license": "MPL-2.0",
+  "mcpServers": "./mcp.json",
+  "interface": {
+    "displayName": "Vanessa Runner",
+    "shortDescription": "Build and manage 1C projects",
+    "category": "Developer Tools",
+    "capabilities": ["Interactive", "Read", "Write"]
+  }
+}

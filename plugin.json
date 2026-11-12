@@ -1,0 +1,20 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "vanessa-runner",
+  "version": "1.0.0",
+  "description": "Agent Plugin 1.0 for building, testing, validating, and administering 1C projects through Vanessa Runner.",
+  "author": {
+    "name": "Vanessa Open Source Community",
+    "url": "https://github.com/vanessa-opensource"
+  },
+  "homepage": "https://github.com/vanessa-opensource/vanessa-runner",
+  "repository": "https://github.com/infostart-hub/vanessa-runner-aiadopted",
+  "license": "MPL-2.0",
+  "keywords": [
+    "1c",
+    "onescript",
+    "vanessa-runner",
+    "mcp",
+    "agent-plugin"
+  ]
+}

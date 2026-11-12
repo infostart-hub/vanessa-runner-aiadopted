@@ -1,0 +1,35 @@
+[tools]
+"github:oscript-library/ovm" = "1.6.2"
+node = "24.18.1"
+
+[tasks."setup:onescript"]
+description = "Установить совместимый OneScript 2.2.1 через OVM"
+run = "ovm install 2.2.1"
+
+[tasks."env:check"]
+description = "Проверить OneScript, OPM и Node.js без смены глобальной среды"
+depends = ["setup:onescript"]
+run = ["ovm run 2.2.1 oscript -- -version", "ovm run 2.2.1 opm -- --version", "node --version"]
+run_windows = ["ovm run 2.2.1 oscript -- -version", "ovm run 2.2.1 cmd -- /c opm --version", "node --version"]
+
+[tasks.setup]
+description = "Установить зависимости Vanessa Runner через закреплённый OneScript"
+depends = ["setup:onescript"]
+run = [
+  "ovm run 2.2.1 opm -- install --local --dev",
+  "ovm run 2.2.1 opm -- install --local autumn-logos@1.3.3",
+  "node -e \"require('node:fs').writeFileSync('oscript_modules/oneunit/src/cli/oscript.cfg', 'lib.additional=../../..\\n')\"",
+  "git apply --ignore-space-change --reverse --check patches/autumn-mcp-discovery.patch 2>/dev/null || git apply --ignore-space-change patches/autumn-mcp-discovery.patch",
+]
+run_windows = [
+  "ovm run 2.2.1 cmd -- /c opm install --local --dev",
+  "ovm run 2.2.1 cmd -- /c opm install --local autumn-logos@1.3.3",
+  "node -e \"require('node:fs').writeFileSync('oscript_modules/oneunit/src/cli/oscript.cfg', 'lib.additional=../../..\\n')\"",
+  "git apply --ignore-space-change --reverse --check patches/autumn-mcp-discovery.patch >nul 2>&1 || git apply --ignore-space-change patches/autumn-mcp-discovery.patch",
+]
+
+[tasks.test]
+description = "Запустить штатные unit-тесты Vanessa Runner"
+depends = ["setup"]
+run = 'OSCRIPT="$(ovm which 2.2.1)" && PATH="$(dirname "$OSCRIPT"):$PWD/oscript_modules/bin:$PATH" "$OSCRIPT" tasks/test_unit.os'
+run_windows = "for /f \"delims=\" %i in ('ovm which 2.2.1') do (set \"PATH=%CD%\\oscript_modules\\bin;%~dpi;%PATH%\" && \"%i\" tasks/test_unit.os)"
