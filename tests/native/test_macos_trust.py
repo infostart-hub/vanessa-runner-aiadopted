@@ -1,8 +1,9 @@
 import importlib.util
-from pathlib import Path
+import os
 import subprocess
 import tempfile
 import unittest
+from pathlib import Path
 
 spec = importlib.util.spec_from_file_location('trust', Path(__file__).resolve().parents[2] / 'tools/macos-trusted-infobases.py')
 trust = importlib.util.module_from_spec(spec)
@@ -57,5 +58,45 @@ class TrustSetup(unittest.TestCase):
             base.mkdir()
             (base / '1Cv8.1CD').touch()
             with self.assertRaises(ValueError): trust.base_pattern(str(base))
+
+    def test_windows_patterns_cover_slashes_case_and_junction_and_revoke_cleanly(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            real_base = root / 'RealTarget' / 'ib'
+            real_base.mkdir(parents=True)
+            (real_base / '1Cv8.1CD').touch()
+            junction_base = root / 'JunctionView'
+            try:
+                if os.name == 'nt':
+                    subprocess.run(
+                        ['cmd', '/c', 'mklink', '/J', str(junction_base), str(real_base)],
+                        check=True,
+                        capture_output=True,
+                    )
+                    target = junction_base
+                else:
+                    link = root / 'SymlinkView'
+                    link.symlink_to(real_base)
+                    target = link
+            except (OSError, subprocess.SubprocessError):
+                target = real_base
+
+            patterns = trust.platform_patterns(str(target), require_existing=True, os_name='nt')
+            expected_count = 2 if str(target.resolve()) != str(target) else 1
+            self.assertEqual(len(patterns), expected_count)
+            for pat in patterns:
+                self.assertTrue(pat.startswith('^File="'))
+                self.assertTrue(pat.endswith('[\\\\/]*".*$'))
+                self.assertIn('[\\\\/][\\\\/]*', pat)
+
+            lexical_pat = patterns[0]
+            self.assertIn('[iI][bB]' if target == real_base else '[vV][iI][eE][wW]', lexical_pat)
+
+            legacy = trust.base_pattern(str(target), require_existing=True)
+            before = trust.KEY + '=' + ';'.join(patterns + [legacy]) + '\n'
+            revoke_patterns = trust.platform_patterns(str(target), require_existing=False, os_name='nt') + [
+                trust.base_pattern(str(target), require_existing=False)
+            ]
+            self.assertEqual(trust.transform(before, revoke_patterns, revoke=True), '')
 
 if __name__ == '__main__': unittest.main()

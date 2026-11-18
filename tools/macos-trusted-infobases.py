@@ -38,6 +38,52 @@ def base_pattern(value, require_existing=True):
     return '^File="' + escaped + '".*$'
 
 
+def windows_bre_pattern(path_str):
+    # Match 1C Windows BRE encoding: case-insensitive letters and slash/backslash variants.
+    raw = str(path_str)
+    if len(raw) > 3:
+        raw = raw.rstrip('\\/')
+    parts = []
+    i = 0
+    while i < len(raw):
+        c = raw[i]
+        if c in '\\/':
+            while i < len(raw) and raw[i] in '\\/':
+                i += 1
+            parts.append('[\\\\/][\\\\/]*')
+            continue
+        if c.lower() != c.upper():
+            parts.append(f'[{c.lower()}{c.upper()}]')
+        elif c in '\\.[*^$':
+            parts.append('\\' + c)
+        else:
+            parts.append(c)
+        i += 1
+    return f'^File="{"".join(parts)}[\\\\/]*".*$'
+
+
+def platform_patterns(value, require_existing=True, os_name=None):
+    target_os = os_name or os.name
+    if target_os != 'nt':
+        return [base_pattern(value, require_existing=require_existing)]
+    path = Path(value).expanduser()
+    if not path.is_absolute():
+        raise ValueError('Infobase path must be absolute')
+    if any(c in str(path) for c in ';"\r\n\x00'):
+        raise ValueError('Infobase path cannot be safely represented in conf.cfg')
+    lexical = Path(os.path.abspath(str(path)))
+    resolved = lexical.resolve(strict=require_existing)
+    if require_existing and not (resolved / '1Cv8.1CD').is_file():
+        raise ValueError('An existing file infobase with 1Cv8.1CD is required')
+    patterns = []
+    for candidate in (lexical, resolved):
+        text = str(candidate)
+        if any(c in text for c in ';"\r\n\x00'):
+            raise ValueError('Infobase path cannot be safely represented in conf.cfg')
+        patterns.append(windows_bre_pattern(text))
+    return list(dict.fromkeys(patterns))
+
+
 def transform(content, patterns, revoke=False):
     lines = content.splitlines(keepends=True)
     indexes = [i for i, line in enumerate(lines) if line.split('=', 1)[0].strip() == KEY]
@@ -68,7 +114,12 @@ def main():
     parser.add_argument('--acknowledge-trust-change', action='store_true',
                         help='Caller has explicit owner approval for the listed test bases')
     args = parser.parse_args()
-    patterns = [base_pattern(p, require_existing=not args.revoke) for p in args.infobase]
+    patterns = []
+    for p in args.infobase:
+        patterns.extend(platform_patterns(p, require_existing=not args.revoke))
+        if args.revoke and os.name == 'nt':
+            patterns.append(base_pattern(p, require_existing=False))
+    patterns = list(dict.fromkeys(patterns))
     config = Path(args.config).expanduser() if args.config else default_config_path()
     before = config.read_text(encoding='utf-8-sig') if config.exists() else ''
     after = transform(before, patterns, args.revoke)

@@ -28,9 +28,19 @@ Assert-Equal (Test-ProcessingAuthorizationAcknowledgement $acknowledgement) $tru
 Assert-Equal (Test-ProcessingAuthorizationAcknowledgement 'Ошибка: операция прервана') $false 'An arbitrary failure must not be dismissed as a consent acknowledgement'
 Assert-Equal (Test-ProcessingAuthorizationAcknowledgement ($acknowledgement.Replace('Вы подтвердили','Вы отменили'))) $false 'Denied permission cannot become an acknowledged grant'
 
+# Supervisor observation loads native consent helper before MainWindowHandle appears
+# (so Confirm-RequestedProcessing early-return never leaves VanessaRunner.ProcessingConsentInput unloaded).
+Assert-Equal ([bool]('VanessaRunner.ProcessingConsentInput' -as [type])) $false 'Native consent type is unloaded before first supervisor helper call'
+$initialProcess = [Diagnostics.Process]::GetCurrentProcess()
+try {
+    $null = @(Get-OwnedAutomationWindow $initialProcess ([IntPtr]1))
+    Ensure-ProcessingConsentInput
+    Assert-Equal ([bool]('VanessaRunner.ProcessingConsentInput' -as [type])) $true 'Supervisor loads ProcessingConsentInput before MainWindowHandle exists'
+    Assert-Equal ([VanessaRunner.ProcessingConsentInput]::WindowBelongsToProcess($PID, [IntPtr]::Zero)) $false 'Loaded ProcessingConsentInput rejects zero HWND'
+} finally { $initialProcess.Dispose() }
+
 # Message-only window verifies scoped delivery without foreground/RDP input.
 Add-Type -AssemblyName System.Windows.Forms
-Add-Type -Path (Join-Path (Split-Path -Parent $Helper) 'enterprise-consent.cs')
 Add-Type -ReferencedAssemblies System.Windows.Forms -TypeDefinition @"
 using System;
 using System.Windows.Forms;

@@ -8,7 +8,7 @@ $null = [IO.Directory]::CreateDirectory($directory)
 $directory = Get-RunDirectory $RunId
 $foreignRoot = Join-Path $directory 'foreign'
 $null = [IO.Directory]::CreateDirectory($foreignRoot)
-$job = $null; $owner = $null; $foreign = $null
+$job = $null; $owner = $null; $child = $null; $foreign = $null
 try {
     $code = "using System.IO; using System.Diagnostics; using System.Reflection;`n" +
         [IO.File]::ReadAllText((Join-Path (Split-Path -Parent $Helper) 'enterprise-job.cs')) + @"
@@ -44,8 +44,9 @@ public static class CancellationFixture {
         Start-Sleep -Milliseconds 20
     }
     $childId = [int][IO.File]::ReadAllText($ready)
+    $child = Get-Process -Id $childId -ErrorAction Stop
     $job = [VanessaRunner.ProcessJob]::OpenForCancellation($name)
-    Assert-Cancellation ($job.Contains($owner.Handle)) 'Only the fixture owner enters its job'
+    Assert-Cancellation ($job.Contains($owner.Handle) -and $job.Contains($child.Handle)) 'Only the fixture owner and its child enter its job'
     Assert-Cancellation (-not $job.Contains($foreign.Handle)) 'External fixture is outside the cancelled job'
     $state = @{
         runId = $RunId; jobName = $name; state = 'running'; result = 'pending'
@@ -63,7 +64,7 @@ public static class CancellationFixture {
     Assert-Cancellation ($answer.cancellationProof.runId -eq $RunId -and $answer.cancellationProof.jobName -eq $name) 'Proof refers to exact original run'
     Assert-Cancellation ($answer.cancellationProof.activeProcessCount -eq 0 -and $job.ProcessIds().Count -eq 0) 'Receipt follows kernel state'
     Assert-Cancellation ($owner.WaitForExit(10000) -and $answer.processes[0].exitCode -eq 1223) 'Retained owner handle supplies actual cancellation exit code'
-    Assert-Cancellation ($null -eq (Get-Process -Id $childId -ErrorAction SilentlyContinue)) 'An inherited descendant is also cancelled'
+    Assert-Cancellation ($child.WaitForExit(10000) -and $null -eq (Get-Process -Id $childId -ErrorAction SilentlyContinue)) 'An inherited descendant is also cancelled'
     Assert-Cancellation (-not $foreign.HasExited) 'Unrelated live process survives'
     $again = Invoke-RunCancellation $directory
     Assert-Cancellation ($again.cancellationProof.observedAt -eq $answer.cancellationProof.observedAt) 'Repeated cancellation preserves terminal receipt'
@@ -80,7 +81,7 @@ public static class CancellationFixture {
     [IO.File]::WriteAllText((Join-Path $directory 'release'), '')
     [IO.File]::WriteAllText((Join-Path $foreignRoot 'release'), '')
     if ($null -ne $job) { $job.Dispose() }
-    foreach ($process in @($owner,$foreign)) {
+    foreach ($process in @($owner,$child,$foreign)) {
         if ($null -ne $process) { if (-not $process.WaitForExit(10000)) { throw 'Owned test fixture did not finish' }; $process.Dispose() }
     }
     if ([IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($directory)).TrimEnd('\') -ne (Split-Path -Parent (Get-RunDirectory $RunId)).TrimEnd('\')) { throw 'Unexpected cancellation fixture cleanup path' }

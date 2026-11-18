@@ -163,14 +163,21 @@ function Invoke-OwnedWindowControl($Entry, $Window, $Control, $Job) {
     ([Windows.Automation.InvokePattern]$pattern).Invoke()
 }
 
+function Ensure-ProcessingConsentInput {
+    if (-not ('VanessaRunner.ProcessingConsentInput' -as [type])) {
+        Add-Type -Path (Join-Path $PSScriptRoot 'enterprise-consent.cs')
+    }
+}
+
 function Get-OwnedAutomationWindows($Process, [switch]$DialogsOnly) {
-    if (-not ('VanessaRunner.ProcessingConsentInput' -as [type])) { Add-Type -Path (Join-Path $PSScriptRoot 'enterprise-consent.cs') }
+    Ensure-ProcessingConsentInput
     $handles = if ($DialogsOnly) { [VanessaRunner.ProcessingConsentInput]::DialogsForProcess($Process.Id) }
         else { [VanessaRunner.ProcessingConsentInput]::WindowsForProcess($Process.Id) }
     foreach ($handle in $handles) { Get-OwnedAutomationWindow $Process $handle }
 }
 
 function Get-OwnedAutomationWindow($Process, [IntPtr]$Handle) {
+    Ensure-ProcessingConsentInput
     # A close can destroy/reuse an enumerated HWND before its UIA provider is read.
     # Ignore that vanished candidate; never observe or act on its foreign replacement.
     if ($Process.HasExited -or -not [VanessaRunner.ProcessingConsentInput]::WindowBelongsToProcess($Process.Id, $Handle)) { return }
@@ -875,6 +882,7 @@ function Invoke-RunWatch([string]$Directory, [string]$Specification) {
         # Observation and process cleanup do not require interactive input.
         if ($state.kind -eq 'vanessa') { $null = Set-ExecutionDesktopObservation $state }
         if (-not ('VanessaRunner.ProcessJob' -as [type])) { Add-Type -Path (Join-Path $PSScriptRoot 'enterprise-job.cs') }
+        Ensure-ProcessingConsentInput
         if ($Specification) {
             $spec = Read-RunJson $Specification
             $acknowledgeLicense = $false
@@ -961,6 +969,7 @@ function Invoke-RunWatch([string]$Directory, [string]$Specification) {
                         $consent = Confirm-RequestedProcessing $mgr $state.requestedProcessing $job $state
                         if ($null -ne $consent) { $state.processingConsent = $consent }
                     }
+                    Ensure-ProcessingConsentInput
                     $mgrDialogs = @([VanessaRunner.ProcessingConsentInput]::DialogsForProcess($mgr.process.Id))
                     $consentHwnd = if ($state.processingConsent -and $state.processingConsent.windowHandle) { [long]$state.processingConsent.windowHandle } else { 0 }
                     $nonConsentDialogs = @($mgrDialogs | Where-Object { $_.ToInt64() -ne $consentHwnd })
@@ -988,6 +997,7 @@ function Invoke-RunWatch([string]$Directory, [string]$Specification) {
                     Confirm-RequestedClosure $entry $job
                     $activeConfirmed = $false
                     if ($entry.PSObject.Properties['closeConfirmedHwnd'] -and $entry.closeConfirmedHwnd) {
+                        Ensure-ProcessingConsentInput
                         $activeDialogs = @([VanessaRunner.ProcessingConsentInput]::DialogsForProcess($entry.process.Id) | ForEach-Object { $_.ToInt64() })
                         $activeConfirmed = $activeDialogs -contains [long]$entry.closeConfirmedHwnd
                     }
